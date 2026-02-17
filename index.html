@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Confidence Analyzer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header Section -->
+        <header>
+            <div class="header-content">
+                <h1>🎤 AI Confidence Analyzer</h1>
+                <p>Analyze your speech confidence in real-time</p>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main>
+            <!-- Recording Controls Section -->
+            <section class="controls-section">
+                <div class="button-group">
+                    <button id="startBtn" type="button" class="btn btn-primary">
+                        <span class="icon">🔴</span>Start Recording
+                    </button>
+                    <button id="stopBtn" type="button" class="btn btn-danger" disabled>
+                        <span class="icon">⏹</span>Stop Recording
+                    </button>
+                    <button id="resetBtn" type="button" class="btn btn-secondary" style="display: none;">
+                        <span class="icon">🔄</span>Try Again
+                    </button>
+                </div>
+
+                <!-- Status Message -->
+                <div id="statusMessage" class="status-message hidden"></div>
+            </section>
+
+            <!-- Live Transcript Section -->
+            <section id="transcriptSection" class="transcript-section hidden">
+                <h3>📝 Live Transcript:</h3>
+                <div id="transcript" class="transcript-text"></div>
+            </section>
+
+            <!-- Loading Spinner -->
+            <div id="loadingSpinner" class="spinner hidden"></div>
+
+            <!-- Results Section -->
+            <section id="resultsSection" class="results-section hidden">
+                
+                <!-- Grammar Accuracy Score Card -->
+                <div class="score-card grammar-card">
+                    <h2>🔤 Grammar Accuracy</h2>
+                    <div class="score-circle">
+                        <span id="grammarAccuracyValue" class="score-number">0</span>
+                        <span class="score-max">/ 100</span>
+                    </div>
+                    
+                    <!-- Progress Bar -->
+                    <div class="progress-container">
+                        <div id="grammarProgressBar" class="progress-bar" style="width: 0%"></div>
+                    </div>
+                    <p class="score-description">Evaluates grammar correctness, punctuation, tense consistency, and sentence structure</p>
+                </div>
+
+                <!-- Confidence Level Score Card -->
+                <div class="score-card confidence-card">
+                    <h2>🎤 Confidence Level</h2>
+                    <div class="score-circle">
+                        <span id="confidenceLevelValue" class="score-number">0</span>
+                        <span class="score-max">/ 100</span>
+                    </div>
+                    
+                    <!-- Progress Bar -->
+                    <div class="progress-container">
+                        <div id="confidenceProgressBar" class="progress-bar" style="width: 0%"></div>
+                    </div>
+                    <p class="score-description">Measures filler usage, vocabulary richness, and delivery confidence</p>
+                </div>
+
+                <!-- Overall Performance Score Card -->
+                <div class="score-card performance-card">
+                    <h2>⭐ Overall Performance</h2>
+                    <div class="score-circle">
+                        <span id="overallPerformanceValue" class="score-number">0</span>
+                        <span class="score-max">/ 100</span>
+                    </div>
+                    
+                    <!-- Progress Bar -->
+                    <div class="progress-container">
+                        <div id="overallProgressBar" class="progress-bar" style="width: 0%"></div>
+                    </div>
+                    <p class="score-description">Average of Grammar Accuracy and Confidence Level</p>
+                </div>
+
+                <!-- Overall Feedback Card -->
+                <div class="feedback-card">
+                    <h3>💡 Overall Feedback</h3>
+                    <p id="feedbackText" class="feedback-text"></p>
+                </div>
+
+                <!-- Grammar Issues Section -->
+                <div id="grammarSection" class="analysis-card hidden">
+                    <h3>🔍 Grammar Issues</h3>
+                    <p class="issues-subtitle">Detected errors with suggestions for improvement</p>
+                    <ul id="grammarList" class="issues-list"></ul>
+                </div>
+
+                <!-- Fluency Issues Section -->
+                <div id="fluencySection" class="analysis-card hidden">
+                    <h3>⚡ Fluency Issues</h3>
+                    <ul id="fluencyList" class="issues-list"></ul>
+                </div>
+
+                <!-- Vocabulary Analysis Section -->
+                <div id="vocabularySection" class="analysis-card hidden">
+                    <h3>📚 Vocabulary Analysis</h3>
+                    <ul id="vocabularyList" class="issues-list"></ul>
+                </div>
+
+                <!-- Filler Word Analysis Section -->
+                <div id="fillerSection" class="analysis-card hidden">
+                    <h3>🎤 Filler Word Analysis</h3>
+                    <ul id="fillerList" class="issues-list"></ul>
+                </div>
+
+                <!-- Metrics Card -->
+                <div class="metrics-card">
+                    <h3>📊 Speech Metrics</h3>
+                    <div class="metrics-grid">
+                        <!-- Total Words Metric -->
+                        <div class="metric-box">
+                            <span class="metric-label">Total Words</span>
+                            <span id="totalWords" class="metric-value">0</span>
+                        </div>
+
+                        <!-- Filler Words Metric -->
+                        <div class="metric-box">
+                            <span class="metric-label">Filler Words</span>
+                            <span id="fillerCount" class="metric-value">0</span>
+                        </div>
+
+                        <!-- Filler Percentage Metric -->
+                        <div class="metric-box">
+                            <span class="metric-label">Filler %</span>
+                            <span id="fillerPercent" class="metric-value">0%</span>
+                        </div>
+
+                        <!-- Vocabulary Richness Metric -->
+                        <div class="metric-box">
+                            <span class="metric-label">Vocabulary Richness</span>
+                            <span id="vocabRichness" class="metric-value">0%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detailed Metrics Breakdown -->
+                <div class="detailed-metrics">
+                    <h3>📈 Detailed Breakdown</h3>
+                    <ul id="metricsList" class="metrics-list"></ul>
+                </div>
+            </section>
+
+            <!-- Instructions Section -->
+            <section class="instructions-section">
+                <h3>📖 How to Use:</h3>
+                <ol class="instructions-list">
+                    <li>Click <strong>"Start Recording"</strong> to begin speaking</li>
+                    <li>Speak clearly into your microphone</li>
+                    <li>Click <strong>"Stop Recording"</strong> when finished</li>
+                    <li>View your confidence score and detailed feedback</li>
+                </ol>
+                
+                <h3>💡 Tips for Better Score:</h3>
+                <ul class="tips-list">
+                    <li>Avoid filler words like "um", "uh", "like", "you know"</li>
+                    <li>Use varied sentence lengths for natural rhythm</li>
+                    <li>Speak for at least 20-30 seconds</li>
+                    <li>Avoid hesitant language ("I think", "maybe", "probably")</li>
+                    <li>Speak with confidence and conviction</li>
+                </ul>
+
+                <h3>🌐 Browser Support:</h3>
+                <p class="browser-support">
+                    Works best in: <strong>Chrome</strong>, <strong>Edge</strong>, <strong>Safari</strong>
+                </p>
+            </section>
+        </main>
+
+        <!-- Footer Section -->
+        <footer>
+           
+        </footer>
+    </div>
+
+    <!-- Link to JavaScript file -->
+    <script src="script.js"></script>
+</body>
+</html>
