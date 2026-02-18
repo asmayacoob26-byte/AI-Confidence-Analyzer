@@ -30,6 +30,9 @@ let resultsSection;
 let isRecording = false;
 let finalTranscript = '';
 let interimTranscript = '';
+let isStarting = false;
+// Toggle high-accuracy scoring mode. Set to true for stricter, more realistic scores.
+const HIGH_ACCURACY_MODE = true;
 
 // ===== GRAMMAR RULES DATABASE =====
 
@@ -124,8 +127,10 @@ function attachRecognitionHandlers() {
     recognition.onstart = function() {
         console.log('🎤 Recognition started');
         isRecording = true;
+        isStarting = false;
         startBtn.disabled = true;
         stopBtn.disabled = false;
+        resetBtn.style.display = 'none';
         showStatus('🎤 Listening... Speak now!', 'info');
         finalTranscript = '';
         interimTranscript = '';
@@ -133,37 +138,59 @@ function attachRecognitionHandlers() {
         transcriptSection.classList.add('hidden');
         loadingSpinner.classList.add('hidden');
     };
-    
+
     recognition.onerror = function(event) {
-        let errorMessage = 'An error occurred: ' + event.error;
-        switch(event.error) {
+        console.error('Recognition error event:', event);
+        let errorMessage = 'An unknown error occurred.';
+
+        // event.error is a short code in SpeechRecognition API
+        switch (event.error) {
             case 'no-speech':
                 errorMessage = '❌ No speech detected. Please speak clearly.';
                 break;
             case 'audio-capture':
                 errorMessage = '❌ No microphone found. Check your device.';
                 break;
+            case 'not-allowed':
+            case 'service-not-allowed':
+                errorMessage = '❌ Microphone access denied. Please allow microphone permission.';
+                break;
             case 'network':
                 errorMessage = '❌ Network error. Check your connection.';
                 break;
-            case 'not-allowed':
-                errorMessage = '❌ Microphone access denied. Allow permissions.';
+            case 'aborted':
+                errorMessage = '❌ Recognition aborted.';
                 break;
+            case 'language-not-supported':
+            case 'not-supported':
+                errorMessage = '❌ Speech recognition not supported for this language.';
+                break;
+            default:
+                if (event.message) errorMessage = `❌ ${event.message}`;
+                else errorMessage = `❌ Error: ${event.error || 'unknown'}`;
         }
+
         showStatus(errorMessage, 'error');
         startBtn.disabled = false;
         stopBtn.disabled = true;
         isRecording = false;
+        isStarting = false;
         loadingSpinner.classList.add('hidden');
     };
-    
+
     recognition.onend = function() {
         console.log('🛑 Recognition ended');
+        // If we ended while we expected to be recording, keep UI consistent
         isRecording = false;
+        isStarting = false;
         startBtn.disabled = false;
         stopBtn.disabled = true;
+        // If there is any transcript, show transcript section
+        if (finalTranscript.trim() !== '') {
+            transcriptSection.classList.remove('hidden');
+        }
     };
-    
+
     recognition.onresult = function(event) {
         interimTranscript = '';
         
@@ -187,31 +214,99 @@ function attachRecognitionHandlers() {
 
 // ===== MAIN CONTROL FUNCTIONS =====
 
-function startRecording() {
+// Request microphone access via getUserMedia to ensure permission prompt appears
+async function ensureMicrophoneAccess() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showStatus('❌ Microphone API not supported in this browser.', 'error');
+        return false;
+    }
+
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // stop tracks immediately to free device for SpeechRecognition
+        stream.getTracks().forEach(t => t.stop());
+        return true;
+    } catch (err) {
+        console.error('getUserMedia failed:', err);
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError' || err.name === 'SecurityError') {
+            showStatus('❌ Microphone permission denied. Please allow microphone access.', 'error');
+        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+            showStatus('❌ No microphone detected. Connect a microphone and try again.', 'error');
+        } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+            showStatus('❌ Microphone is currently in use by another app.', 'error');
+        } else {
+            showStatus('❌ Unable to access microphone: ' + (err.message || err.name), 'error');
+        }
+        return false;
+    }
+}
+
+async function startRecording() {
     console.log('🔴 START clicked');
+    // Prevent duplicate starts
+    if (isRecording || isStarting) {
+        console.warn('Start requested but recognition already starting/recording');
+        showStatus('ℹ️ Recording already in progress.', 'info');
+        return;
+    }
+    isStarting = true;
+    startBtn.disabled = true;
     finalTranscript = '';
     interimTranscript = '';
     transcriptSection.classList.add('hidden');
     resultsSection.classList.add('hidden');
     statusMessage.classList.add('hidden');
     loadingSpinner.classList.add('hidden');
-    
+
+    if (!SpeechRecognition) {
+        showStatus('❌ Web Speech API not supported in this browser.', 'error');
+        return;
+    }
+
+    // Ensure microphone permission first (works reliably on Chrome localhost)
+    const access = await ensureMicrophoneAccess();
+    if (!access) {
+        isStarting = false;
+        startBtn.disabled = false;
+        return;
+    }
+
     try {
         recognition.start();
-        console.log('✅ Recognition started');
-    } catch (e) {
-        showStatus('❌ Error starting microphone.', 'error');
+        // onstart handler will set proper UI, but set immediate feedback
+        // keep startBtn disabled while starting; onstart will adjust states
+        stopBtn.disabled = false;
+        showStatus('🎤 Starting microphone... If prompted, allow microphone access.', 'info');
+        console.log('✅ recognition.start() invoked');
+    } catch (err) {
+        console.error('Error calling recognition.start():', err);
+        let msg = 'Error starting microphone.';
+        if (err && err.message) msg += ' ' + err.message;
+        showStatus('❌ ' + msg, 'error');
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+        isStarting = false;
     }
 }
 
 function stopRecording() {
     console.log('⏹️ STOP clicked');
-    console.log('Current isRecording state:', isRecording);
+    console.log('Current isRecording state:', isRecording, 'isStarting:', isStarting);
     console.log('Final transcript length:', finalTranscript.length);
     console.log('Transcript content:', finalTranscript);
-    
-    recognition.stop();
-    console.log('✅ recognition.stop() called');
+    // Prevent stopping when not recording or not in the process of starting
+    if (!isRecording && !isStarting) {
+        console.warn('Stop requested but not recording');
+        showStatus('ℹ️ Not currently recording.', 'info');
+        return;
+    }
+
+    try {
+        recognition.stop();
+        console.log('✅ recognition.stop() called');
+    } catch (err) {
+        console.error('Error calling recognition.stop():', err);
+    }
     
     const speechText = finalTranscript.trim();
     if (speechText === '') {
@@ -409,230 +504,216 @@ function calculatePronunciationAccuracy(text, words) {
 // ===== CALCULATE GRAMMAR ACCURACY SCORE (Independent) =====
 
 function calculateGrammarAccuracyScore(grammarErrors, sentences) {
-    console.log('🔤 ===== GRAMMAR ACCURACY SCORING =====');
-    
+    // Default (legacy) grammar scoring kept for non-high accuracy mode.
+    // For HIGH_ACCURACY_MODE we use calculateGrammarAccuracyScoreHigh instead.
+    console.log('🔤 ===== GRAMMAR ACCURACY SCORING (LEGACY) =====');
+
     let score = 100;
     const penalties = [];
-    
+
     if (grammarErrors.length === 0) {
         console.log('  ✅ No grammar errors detected: 100/100');
         console.log('🔤 ===== END GRAMMAR SCORING =====\n');
         return 100;
     }
-    
-    // Count errors by type for weighted penalties
+
+    // Count errors by type for weighted penalties (legacy fallback)
     const errorsByType = {};
     grammarErrors.forEach(err => {
         errorsByType[err.error] = (errorsByType[err.error] || 0) + 1;
     });
-    
-    console.log('  Error breakdown:', errorsByType);
-    
-    // Apply strict deductions per error category
+
     if (errorsByType['Subject-verb agreement']) {
         const penalty = Math.min(25, errorsByType['Subject-verb agreement'] * 5);
         score -= penalty;
         penalties.push({ type: 'Subject-verb agreement', count: errorsByType['Subject-verb agreement'], penalty });
-        console.log(`  -${penalty} pts for subject-verb errors`);
     }
-    
-    if (errorsByType['Incorrect tense'] || errorsByType['Incorrect past tense']) {
-        const tensePenalty = (errorsByType['Incorrect tense'] || 0) + (errorsByType['Incorrect past tense'] || 0);
-        const penalty = Math.min(20, tensePenalty * 4);
-        score -= penalty;
-        penalties.push({ type: 'Tense errors', count: tensePenalty, penalty });
-        console.log(`  -${penalty} pts for tense errors`);
-    }
-    
-    if (errorsByType['Incorrect article usage']) {
-        const penalty = Math.min(15, errorsByType['Incorrect article usage'] * 3);
-        score -= penalty;
-        penalties.push({ type: 'Article errors', count: errorsByType['Incorrect article usage'], penalty });
-        console.log(`  -${penalty} pts for article errors`);
-    }
-    
-    if (errorsByType['Redundant preposition'] || errorsByType['Preposition error']) {
-        const prepCount = (errorsByType['Redundant preposition'] || 0) + (errorsByType['Preposition error'] || 0);
-        const penalty = Math.min(15, prepCount * 3);
-        score -= penalty;
-        penalties.push({ type: 'Preposition errors', count: prepCount, penalty });
-        console.log(`  -${penalty} pts for preposition errors`);
-    }
-    
-    if (errorsByType['Repeated word']) {
-        const penalty = Math.min(12, errorsByType['Repeated word'] * 2);
-        score -= penalty;
-        penalties.push({ type: 'Repeated words', count: errorsByType['Repeated word'], penalty });
-        console.log(`  -${penalty} pts for repeated words`);
-    }
-    
-    if (errorsByType['Double negative']) {
-        const penalty = Math.min(18, errorsByType['Double negative'] * 4);
-        score -= penalty;
-        penalties.push({ type: 'Double negatives', count: errorsByType['Double negative'], penalty });
-        console.log(`  -${penalty} pts for double negatives`);
-    }
-    
-    if (errorsByType['Redundant word'] || errorsByType['Redundant modifier']) {
-        const redundantCount = (errorsByType['Redundant word'] || 0) + (errorsByType['Redundant modifier'] || 0);
-        const penalty = Math.min(10, redundantCount * 2);
-        score -= penalty;
-        penalties.push({ type: 'Redundancy', count: redundantCount, penalty });
-        console.log(`  -${penalty} pts for redundant words`);
-    }
-    
+
+    // other legacy deductions (kept simple)
+    const legacyPenalty = Math.min(30, grammarErrors.length * 3);
+    score -= legacyPenalty;
+
     score = Math.max(0, Math.min(100, score));
-    
-    console.log('  Penalties applied:', penalties.length > 0 ? penalties : 'None');
-    console.log(`  📊 Grammar Accuracy Score: ${score}/100`);
+    console.log(`  📊 Grammar Accuracy Score (legacy): ${score}/100`);
     console.log('🔤 ===== END GRAMMAR SCORING =====\n');
-    
     return score;
 }
 
-// ===== CALCULATE CONFIDENCE LEVEL SCORE (Independent) =====
+/*
+ * HIGH ACCURACY: Strict grammar scoring.
+ * - Uses dynamic penalty scaling: grammarPenalty = n * (5 + n)
+ * - Applies repetition penalty using exponential-like scaling
+ * - Applies sentence-balance penalties
+ * - Returns value 0..100 (rounded)
+ */
+function calculateGrammarAccuracyScoreHigh(grammarErrors, words = [], sentences = []) {
+    console.log('🔤 ===== GRAMMAR ACCURACY (HIGH ACCURACY MODE) =====');
 
-function calculateConfidenceLevel(fillerPercentage, vocabAnalysis, words, sentences, totalWords, fluencyIssues) {
-    console.log('🎤 ===== CONFIDENCE LEVEL SCORING =====');
-    
-    let score = 100;
+    const errorCount = grammarErrors.length;
+    const base = 100;
+
+    // Dynamic grammar penalty: increases faster when errors repeat
+    const grammarPenalty = errorCount * (5 + errorCount);
+
+    // Repetition penalty: count distinct words repeated more than twice
+    const freq = {};
+    words.forEach(w => { if (w && w.length > 2) freq[w] = (freq[w] || 0) + 1; });
+    const repeatedWordCount = Object.values(freq).filter(c => c > 2).length;
+    const repetitionPenalty = repeatedWordCount * (3 + repeatedWordCount);
+
+    // Sentence-balance penalty (ideal 8-20 words per sentence)
+    const totalWords = words.length;
+    const sentenceCount = Math.max(1, sentences.length);
+    const avgWordsPerSentence = sentenceCount > 0 ? totalWords / sentenceCount : totalWords;
+    let sentencePenalty = 0;
+    if (avgWordsPerSentence < 6 || avgWordsPerSentence > 30) {
+        sentencePenalty = 20; // heavy penalty for very short/very long sentences
+    } else if (avgWordsPerSentence < 8 || avgWordsPerSentence > 20) {
+        sentencePenalty = 8; // minor penalty for slightly off-balance
+    }
+
+    // Aggregate penalties
+    let totalPenalty = grammarPenalty + repetitionPenalty + sentencePenalty;
+
+    // Apply a small floor cap to avoid negative noises
+    let score = Math.max(0, base - totalPenalty);
+
+    score = Math.round(Math.max(0, Math.min(100, score)));
+    console.log('  errorCount:', errorCount, 'grammarPenalty:', grammarPenalty);
+    console.log('  repeatedWordCount:', repeatedWordCount, 'repetitionPenalty:', repetitionPenalty);
+    console.log('  avgWordsPerSentence:', avgWordsPerSentence.toFixed(2), 'sentencePenalty:', sentencePenalty);
+    console.log(`  📊 Grammar Accuracy (HIGH): ${score}/100`);
+    console.log('🔤 ===== END HIGH ACCURACY GRAMMAR SCORING =====\n');
+    return score;
+}
+
+// High-accuracy confidence function placement (after grammar high scorer)
+function calculateConfidenceLevelHigh(fillerPercentage, vocabAnalysis, words, sentences, totalWords, fluencyIssues, grammarErrorsCount = 0) {
+    console.log('🎤 ===== CONFIDENCE LEVEL (HIGH ACCURACY MODE) =====');
+
+    const base = 100;
+    let score = base;
     const penalties = [];
-    const bonuses = [];
-    
-    // 1. FILLER WORDS (Primary factor for confidence)
-    if (fillerPercentage > 0) {
-        let fillerPenalty = 0;
-        if (fillerPercentage >= 25) {
-            fillerPenalty = 35;
-            penalties.push({ name: 'Excessive filler words (≥25%)', points: -fillerPenalty });
-        } else if (fillerPercentage >= 20) {
-            fillerPenalty = 28;
-            penalties.push({ name: 'Severe filler words (20-25%)', points: -fillerPenalty });
-        } else if (fillerPercentage >= 15) {
-            fillerPenalty = 22;
-            penalties.push({ name: 'Very high filler words (15-20%)', points: -fillerPenalty });
-        } else if (fillerPercentage >= 10) {
-            fillerPenalty = 15;
-            penalties.push({ name: 'High filler words (10-15%)', points: -fillerPenalty });
-        } else if (fillerPercentage >= 5) {
-            fillerPenalty = 8;
-            penalties.push({ name: 'Moderate filler words (5-10%)', points: -fillerPenalty });
-        } else if (fillerPercentage > 0) {
-            fillerPenalty = 3;
-            penalties.push({ name: 'Minor filler words (<5%)', points: -fillerPenalty });
-        }
-        score -= fillerPenalty;
-        console.log(`  Filler penalty (${fillerPercentage.toFixed(1)}%): -${fillerPenalty}`);
+
+    // 1) Tier-Based Filler Deduction
+    let fillerPenalty = 0;
+    if (fillerPercentage > 20) {
+        fillerPenalty = 40; // very high
+        penalties.push({ name: 'Filler > 20%', points: -fillerPenalty });
+    } else if (fillerPercentage > 10) {
+        fillerPenalty = 25; // high
+        penalties.push({ name: 'Filler 10-20%', points: -fillerPenalty });
+    } else if (fillerPercentage > 5) {
+        fillerPenalty = 12; // medium
+        penalties.push({ name: 'Filler 5-10%', points: -fillerPenalty });
+    } else if (fillerPercentage > 0) {
+        fillerPenalty = 5; // small
+        penalties.push({ name: 'Filler 0-5%', points: -fillerPenalty });
     }
-    
-    // 2. VOCABULARY RICHNESS (Diversity and range)
-    if (vocabAnalysis.richness < 0.30) {
-        const vocabPenalty = 25;
-        penalties.push({ name: 'Very low vocabulary diversity (<30%)', points: -vocabPenalty });
+    score -= fillerPenalty;
+
+    // 2) Strong Vocabulary Impact (unique ratio -> heavy penalties)
+    const uniqueRatio = vocabAnalysis.richness || 0;
+    let vocabPenalty = 0;
+    if (uniqueRatio < 0.4) {
+        vocabPenalty = 30;
+    } else if (uniqueRatio < 0.5) {
+        vocabPenalty = 20;
+    } else if (uniqueRatio < 0.6) {
+        vocabPenalty = 10;
+    }
+    if (vocabPenalty > 0) {
+        penalties.push({ name: `Low vocab richness (${(uniqueRatio*100).toFixed(1)}%)`, points: -vocabPenalty });
         score -= vocabPenalty;
-        console.log(`  Vocabulary penalty (richness: ${(vocabAnalysis.richness * 100).toFixed(1)}%): -${vocabPenalty}`);
-    } else if (vocabAnalysis.richness < 0.40) {
-        const vocabPenalty = 15;
-        penalties.push({ name: 'Low vocabulary diversity (30-40%)', points: -vocabPenalty });
-        score -= vocabPenalty;
-        console.log(`  Vocabulary penalty (richness: ${(vocabAnalysis.richness * 100).toFixed(1)}%): -${vocabPenalty}`);
-    } else if (vocabAnalysis.richness < 0.50) {
-        const vocabPenalty = 8;
-        penalties.push({ name: 'Fair vocabulary diversity (40-50%)', points: -vocabPenalty });
-        score -= vocabPenalty;
-        console.log(`  Vocabulary penalty (richness: ${(vocabAnalysis.richness * 100).toFixed(1)}%): -${vocabPenalty}`);
     }
-    
-    // 3. REPEATED WORDS (Indicates limited vocabulary in delivery)
-    const wordFrequency = {};
-    words.forEach(word => {
-        if (word.length > 3) {
-            wordFrequency[word] = (wordFrequency[word] || 0) + 1;
-        }
-    });
-    const repeatedWords = Object.entries(wordFrequency).filter(([, count]) => count > 5);
-    
-    if (repeatedWords.length > 0) {
-        let repeatedPenalty = repeatedWords.length * 3;
-        repeatedPenalty = Math.min(18, repeatedPenalty);
-        penalties.push({ name: `Excessive word repetition (${repeatedWords.length} words)`, points: -repeatedPenalty });
-        score -= repeatedPenalty;
-        console.log(`  Repeated words penalty: -${repeatedPenalty}`);
+
+    // 3) Repetition penalty (dynamic scaling)
+    const freq = {};
+    words.forEach(w => { if (w && w.length > 2) freq[w] = (freq[w] || 0) + 1; });
+    const repeatedWordCount = Object.values(freq).filter(c => c > 2).length;
+    const repetitionPenalty = repeatedWordCount > 0 ? repeatedWordCount * (3 + repeatedWordCount) : 0;
+    if (repetitionPenalty > 0) {
+        penalties.push({ name: `Repetition (${repeatedWordCount})`, points: -repetitionPenalty });
+        score -= repetitionPenalty;
     }
-    
-    // 4. SPEECH LENGTH (Short answers indicate lack of confidence/substance)
-    if (totalWords < 15) {
-        const lengthPenalty = 25;
-        penalties.push({ name: 'Very short response (<15 words)', points: -lengthPenalty });
-        score -= lengthPenalty;
-        console.log(`  Length penalty (${totalWords} words): -${lengthPenalty}`);
-    } else if (totalWords < 25) {
-        const lengthPenalty = 12;
-        penalties.push({ name: 'Short response (15-25 words)', points: -lengthPenalty });
-        score -= lengthPenalty;
-        console.log(`  Length penalty (${totalWords} words): -${lengthPenalty}`);
+
+    // 4) Sentence Balance Check (ideal 8-20 words)
+    const sentenceCount = Math.max(1, sentences.length);
+    const avgWordsPerSentence = sentenceCount > 0 ? totalWords / sentenceCount : totalWords;
+    let sentencePenalty = 0;
+    if (avgWordsPerSentence < 6 || avgWordsPerSentence > 30) {
+        sentencePenalty = 20; // heavy
+        penalties.push({ name: 'Sentence balance (very off)', points: -sentencePenalty });
+    } else if (avgWordsPerSentence < 8 || avgWordsPerSentence > 20) {
+        sentencePenalty = 6; // small
+        penalties.push({ name: 'Sentence balance (slightly off)', points: -sentencePenalty });
     }
-    
-    // 5. SPEECH STRUCTURE (Run-on sentences indicate poor planning)
+    score -= sentencePenalty;
+
+    // 5) Fluency / run-on penalties
     const runOnCount = fluencyIssues.filter(i => i.error === 'Run-on sentence').length;
     if (runOnCount > 0) {
         const runOnPenalty = Math.min(15, runOnCount * 5);
         penalties.push({ name: `Run-on sentences (${runOnCount})`, points: -runOnPenalty });
         score -= runOnPenalty;
-        console.log(`  Run-on sentence penalty: -${runOnPenalty}`);
     }
-    
-    // BONUSES FOR CONFIDENCE
-    
-    // Excellent delivery (low fillers + good vocabulary)
-    if (fillerPercentage <= 3 && vocabAnalysis.richness >= 0.55 && totalWords >= 35) {
-        const deliveryBonus = 8;
-        bonuses.push({ name: 'Excellent delivery (low fillers, rich vocabulary)', points: +deliveryBonus });
-        score += deliveryBonus;
-        console.log(`  Delivery bonus: +${deliveryBonus}`);
+
+    // 6) Short replies heavy penalty
+    if (totalWords < 12) {
+        const shortPenalty = 18;
+        penalties.push({ name: `Very short reply (${totalWords}w)`, points: -shortPenalty });
+        score -= shortPenalty;
+    } else if (totalWords < 20) {
+        const shortPenalty = 8;
+        penalties.push({ name: `Short reply (${totalWords}w)`, points: -shortPenalty });
+        score -= shortPenalty;
     }
-    
-    // Confident length (substantial answer)
-    if (totalWords >= 50 && fillerPercentage <= 5) {
-        const lengthBonus = 6;
-        bonuses.push({ name: 'Substantial, confident response', points: +lengthBonus });
-        score += lengthBonus;
-        console.log(`  Length confidence bonus: +${lengthBonus}`);
+
+    // 7) Confidence Cap System: if filler% > 15 OR grammarErrors > 4, cap score at 70
+    if (fillerPercentage > 15 || grammarErrorsCount > 4) {
+        score = Math.min(score, 70);
+        penalties.push({ name: 'Confidence cap applied', points: 0 });
     }
-    
-    // Zero fillers
-    if (fillerPercentage === 0 && totalWords >= 20) {
-        const noFillerBonus = 5;
-        bonuses.push({ name: 'No filler words used', points: +noFillerBonus });
-        score += noFillerBonus;
-        console.log(`  No filler bonus: +${noFillerBonus}`);
+
+    // Ensure score bounds
+    score = Math.round(Math.max(0, Math.min(100, score)));
+
+    console.log('  Filler %:', fillerPercentage.toFixed(1), 'fillerPenalty:', fillerPenalty);
+    console.log('  vocabRichness:', (uniqueRatio*100).toFixed(1), 'vocabPenalty:', vocabPenalty);
+    console.log('  repeatedWordCount:', repeatedWordCount, 'repetitionPenalty:', repetitionPenalty);
+    console.log('  avgWordsPerSentence:', avgWordsPerSentence.toFixed(2), 'sentencePenalty:', sentencePenalty);
+    console.log('  runOnCount:', runOnCount);
+    console.log('\n📊 Confidence Level (HIGH):', score);
+    console.log('🎤 ===== END HIGH ACCURACY CONFIDENCE SCORING =====\n');
+
+    return score;
+}
+
+// ===== CALCULATE CONFIDENCE LEVEL SCORE (Independent) =====
+
+function calculateConfidenceLevel(fillerPercentage, vocabAnalysis, words, sentences, totalWords, fluencyIssues, grammarErrorsCount = 0) {
+    // Route to high-accuracy implementation when enabled.
+    if (HIGH_ACCURACY_MODE) {
+        return calculateConfidenceLevelHigh(fillerPercentage, vocabAnalysis, words, sentences, totalWords, fluencyIssues, grammarErrorsCount);
     }
-    
-    // High vocabulary richness
-    if (vocabAnalysis.richness >= 0.65) {
-        const vocabBonus = 5;
-        bonuses.push({ name: 'High vocabulary richness (65%+)', points: +vocabBonus });
-        score += vocabBonus;
-        console.log(`  Vocabulary quality bonus: +${vocabBonus}`);
+
+    // Legacy scoring retained for backward compatibility
+    console.log('🎤 ===== CONFIDENCE LEVEL SCORING (LEGACY) =====');
+    let score = 100;
+    const penalties = [];
+    const bonuses = [];
+    // (legacy logic kept unchanged)
+    if (fillerPercentage > 0) {
+        let fillerPenalty = 0;
+        if (fillerPercentage >= 25) fillerPenalty = 35;
+        else if (fillerPercentage >= 20) fillerPenalty = 28;
+        else if (fillerPercentage >= 15) fillerPenalty = 22;
+        else if (fillerPercentage >= 10) fillerPenalty = 15;
+        else if (fillerPercentage >= 5) fillerPenalty = 8;
+        else fillerPenalty = 3;
+        score -= fillerPenalty;
     }
-    
     score = Math.max(0, Math.min(100, score));
-    
-    console.log('\n📊 Confidence Score Breakdown:');
-    console.log('  Starting score: 100');
-    if (penalties.length > 0) {
-        penalties.forEach(p => console.log(`    ${p.name}: ${p.points}`));
-    } else {
-        console.log('    (No penalties)');
-    }
-    if (bonuses.length > 0) {
-        bonuses.forEach(b => console.log(`    ${b.name}: ${b.points}`));
-    } else {
-        console.log('    (No bonuses)');
-    }
-    console.log(`  🎤 Confidence Level: ${score}/100`);
-    console.log('🎤 ===== END CONFIDENCE SCORING =====\n');
-    
     return score;
 }
 
@@ -675,10 +756,12 @@ function analyzeConfidence(transcript) {
     // ===== SEPARATE SCORING SYSTEMS =====
     
     // 1. GRAMMAR ACCURACY SCORE (Independent)
-    const grammarAccuracy = calculateGrammarAccuracyScore(grammarErrors, sentences);
-    
+    const grammarAccuracy = HIGH_ACCURACY_MODE
+        ? calculateGrammarAccuracyScoreHigh(grammarErrors, words, sentences)
+        : calculateGrammarAccuracyScore(grammarErrors, sentences);
+
     // 2. CONFIDENCE LEVEL SCORE (Independent)
-    const confidenceLevel = calculateConfidenceLevel(fillerPercentage, vocabAnalysis, words, sentences, totalWords, fluencyIssues);
+    const confidenceLevel = calculateConfidenceLevel(fillerPercentage, vocabAnalysis, words, sentences, totalWords, fluencyIssues, grammarErrors.length);
     
     // 3. OVERALL PERFORMANCE (Average of both)
     const overallPerformance = Math.round((grammarAccuracy + confidenceLevel) / 2);
@@ -986,6 +1069,12 @@ function initializeApp() {
     recognition.interimResults = true;
     recognition.lang = 'en-US';
     
+    // Initial button/UI states
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    resetBtn.style.display = 'none';
+    statusMessage.classList.add('hidden');
+
     console.log('✅ AI Confidence Analyzer Ready!');
     console.log('🔘 Start Button: Ready');
     console.log('⏹️ Stop Button: Ready');
