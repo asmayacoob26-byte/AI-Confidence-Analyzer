@@ -322,7 +322,7 @@ function renderHistoryList() {
     if (!list) return;
     const history = loadHistory();
     list.innerHTML = '';
-    if (!history.length) { list.innerHTML = '<li>No practice history yet.</li>'; return; }
+    if (!history.length) { list.innerHTML = '<li>No practice history available.</li>'; return; }
     history.forEach((s, idx) => {
       const li = document.createElement('li');
       const date = s.date ? new Date(s.date).toLocaleString() : 'Unknown';
@@ -348,6 +348,42 @@ function updateHistoryChart() {
     }
   } catch (e) { console.warn('updateHistoryChart failed', e); }
 }
+
+// ---- Clear / Reset practice history ----
+function clearHistoryConfirmed() {
+  const ok = confirm('Are you sure you want to reset your practice history?');
+  if (!ok) return;
+  try {
+    localStorage.removeItem(HISTORY_KEY);
+  } catch (e) { console.warn('clear history failed', e); }
+  // Re-render UI immediately
+  renderHistoryList();
+  updateHistoryChart();
+
+  // Reset visible metrics
+  const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+  setText('wpmValue', '0');
+  setText('durationValue', '0s');
+  setText('confidencePercent', '0%');
+  setText('totalWords', '0');
+  setText('fillerCount', '0');
+  setText('fillerPercent', '0%');
+  setText('vocabRichness', '0%');
+  setText('grammarAccuracyValue', '0');
+  setText('confidenceLevelValue', '0');
+  setText('overallPerformanceValue', '0');
+
+  // Reset progress bars and confidence bar widths
+  const confBar = document.getElementById('confidenceBar'); if (confBar) confBar.style.width = '0%';
+  ['grammarProgressBar','confidenceProgressBar','overallProgressBar'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.width='0%'; });
+
+  setStatus('Practice history reset.', 'success');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const clearBtn = document.getElementById('clearHistoryBtn');
+  if (clearBtn) clearBtn.addEventListener('click', (e)=>{ e.preventDefault(); clearHistoryConfirmed(); });
+});
 
 // ---- Boot ----
 function init() {

@@ -55,7 +55,10 @@
             </section>
             <!-- Practice History Dashboard -->
             <section class="detailed-metrics" id="historySection">
-                <h3>📈 Practice History</h3>
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px;">
+                    <h3 style="margin:0;">📈 Practice History</h3>
+                    <button id="clearHistoryBtn" class="btn btn-danger btn-small" title="Reset practice history">Reset History</button>
+                </div>
                 <div style="display:flex;gap:20px;flex-wrap:wrap;">
                     <div style="flex:1;min-width:300px;">
                         <canvas id="historyChart"></canvas>
@@ -77,13 +80,17 @@
 
             <!-- Visualization Row -->
             <section class="results-section hidden" id="visualRow">
-                <div style="display:flex;gap:20px;flex-wrap:wrap;padding:20px;">
-                    <div style="flex:1;min-width:260px;">
+                <div class="visual-row-inner">
+                    <div class="visual-col">
                         <canvas id="radarChart" aria-label="Radar chart" role="img"></canvas>
                     </div>
-                    <div style="flex:1;min-width:260px;">
+                </div>
+
+                <!-- Centered Speech Speed card -->
+                <div class="centered-wrapper" aria-live="polite">
+                    <div class="speech-card">
                         <h3 style="margin-bottom:8px;">Speech Speed</h3>
-                        <div class="metric-box" style="padding:20px;margin-bottom:12px;">
+                        <div class="metric-box">
                             <div style="display:flex;justify-content:space-between;align-items:center;">
                                 <div>
                                     <div style="font-size:0.95em;color:#666;">Words Per Minute</div>
@@ -95,11 +102,6 @@
                                 </div>
                             </div>
                             <div id="wpmFeedback" style="margin-top:12px;font-weight:600;">—</div>
-                        </div>
-
-                        <div class="feedback-card">
-                            <h3>AI Coach</h3>
-                            <div id="aiCoach" class="feedback-text">Use the coach to get suggestions after recording.</div>
                         </div>
                     </div>
                 </div>
