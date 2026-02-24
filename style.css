@@ -403,6 +403,23 @@ main {
     transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Confidence progress bar (top) */
+.confidence-bar { box-shadow: 0 6px 18px rgba(0,0,0,0.08); }
+
+/* Radar & charts container styling */
+#radarChart, #historyChart { width: 100% !important; height: 260px !important; }
+
+/* AI Coach styling */
+.ai-coach { background: linear-gradient(180deg,#fff,#f7fbff); padding: 18px; border-radius: 12px; border:1px solid #e9f0ff; }
+
+/* Practice History */
+.history-card { background: var(--bg-light); padding:18px; border-radius:12px; border:1px solid var(--border-color); }
+
+/* Small responsive tweaks for visual row */
+@media(max-width:820px){
+    #radarChart, #historyChart { height: 220px !important; }
+}
+
 .score-interpretation {
     font-size: 1.1em;
     font-weight: 600;

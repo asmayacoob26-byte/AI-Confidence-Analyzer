@@ -20,6 +20,14 @@
         <main>
             <!-- Recording Controls Section -->
             <section class="controls-section">
+                <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+                    <label for="languageSelect" style="font-weight:600;color:#333;">Language:</label>
+                    <select id="languageSelect" style="padding:8px 12px;border-radius:8px;border:1px solid #ddd;">
+                        <option value="en-US">English (en-US)</option>
+                        <option value="ta-IN">Tamil (ta-IN)</option>
+                        <option value="hi-IN">Hindi (hi-IN)</option>
+                    </select>
+                </div>
                 <div class="button-group">
                     <button id="startBtn" type="button" class="btn btn-primary">
                         <span class="icon">🔴</span>Start Recording
@@ -34,12 +42,67 @@
 
                 <!-- Status Message -->
                 <div id="statusMessage" class="status-message hidden"></div>
+                <!-- Confidence Progress (modern) -->
+                <div id="confidenceProgressWrap" style="margin-top:16px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                        <strong>Confidence</strong>
+                        <span id="confidencePercent" style="font-weight:700;">0%</span>
+                    </div>
+                    <div class="confidence-bar" style="background:#f0f0f0;border-radius:14px;height:18px;overflow:hidden;">
+                        <div id="confidenceBar" style="height:100%;width:0%;background:linear-gradient(90deg,#4caf50,#8bc34a);transition:width 800ms cubic-bezier(.2,.8,.2,1);"></div>
+                    </div>
+                </div>
+            </section>
+            <!-- Practice History Dashboard -->
+            <section class="detailed-metrics" id="historySection">
+                <h3>📈 Practice History</h3>
+                <div style="display:flex;gap:20px;flex-wrap:wrap;">
+                    <div style="flex:1;min-width:300px;">
+                        <canvas id="historyChart"></canvas>
+                    </div>
+                    <div style="flex:1;min-width:220px;">
+                        <div class="history-card">
+                            <h4 style="margin-bottom:8px;">Recent Sessions</h4>
+                            <ul id="historyList" style="list-style:none;padding-left:0;margin:0;max-height:260px;overflow:auto;"></ul>
+                        </div>
+                    </div>
+                </div>
             </section>
 
             <!-- Live Transcript Section -->
             <section id="transcriptSection" class="transcript-section hidden">
                 <h3>📝 Live Transcript:</h3>
                 <div id="transcript" class="transcript-text"></div>
+            </section>
+
+            <!-- Visualization Row -->
+            <section class="results-section hidden" id="visualRow">
+                <div style="display:flex;gap:20px;flex-wrap:wrap;padding:20px;">
+                    <div style="flex:1;min-width:260px;">
+                        <canvas id="radarChart" aria-label="Radar chart" role="img"></canvas>
+                    </div>
+                    <div style="flex:1;min-width:260px;">
+                        <h3 style="margin-bottom:8px;">Speech Speed</h3>
+                        <div class="metric-box" style="padding:20px;margin-bottom:12px;">
+                            <div style="display:flex;justify-content:space-between;align-items:center;">
+                                <div>
+                                    <div style="font-size:0.95em;color:#666;">Words Per Minute</div>
+                                    <div id="wpmValue" style="font-size:2em;font-weight:700;color:var(--primary-color);">0</div>
+                                </div>
+                                <div style="text-align:right;">
+                                    <div style="font-size:0.95em;color:#666;">Duration</div>
+                                    <div id="durationValue" style="font-size:1.2em;font-weight:700;">0s</div>
+                                </div>
+                            </div>
+                            <div id="wpmFeedback" style="margin-top:12px;font-weight:600;">—</div>
+                        </div>
+
+                        <div class="feedback-card">
+                            <h3>AI Coach</h3>
+                            <div id="aiCoach" class="feedback-text">Use the coach to get suggestions after recording.</div>
+                        </div>
+                    </div>
+                </div>
             </section>
 
             <!-- Loading Spinner -->
@@ -182,7 +245,7 @@
 
                 <h3>🌐 Browser Support:</h3>
                 <p class="browser-support">
-                    Works best in: <strong>Chrome</strong>, <strong>Edge</strong>, <strong>Safari</strong>
+                    Voice recording: <strong>Chrome (required)</strong>. Analysis UI works read-only in other browsers.
                 </p>
             </section>
         </main>
@@ -194,6 +257,7 @@
     </div>
 
     <!-- Link to JavaScript file -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
